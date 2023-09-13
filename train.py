@@ -1,5 +1,6 @@
 import os
 import torch 
+import numpy as np
 import torchvision
 import torch.nn as nn
 import torch.optim as optim
@@ -9,8 +10,9 @@ from torchvision import datasets
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
 import torchvision.transforms as transforms
-from data.data_loader import create_dataset
-from core.autoencoder import Autoencoder, Encoder, Decoder
+from data.data_loader import split_train, SeismicDataset
+from core.autoencoder import ConvAutoencoder
+import matplotlib.pyplot as plt
 
 
 # Processador ou GPU
@@ -19,36 +21,42 @@ device = torch.device(
     else "cpu"
 )
 
+print('🔹 Device configurado -> ' + str(device))
+
 # Constantes de treinamento
-NUM_EPOCHS = 50
+NUM_EPOCHS = 5
 LEARNING_RATE = 1e-3
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 # Pré-processamento (transformações) das imagens
 transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
+# Gera os splits de treino
+split_train()
 
-train_set, test_set = create_dataset()
+print('🔹 Gerou splits de treino')
 
+# Cria o dataset de treino
+train_dataset = SeismicDataset(transforms=transform, split='train')
 train_loader = DataLoader(
-    train_set, 
+    train_dataset,
     batch_size=BATCH_SIZE,
     shuffle=True
 )
 
-test_loader = DataLoader(
-    test_set, 
-    batch_size=BATCH_SIZE, 
-    shuffle=True
-)
+print('🔹 Gerou o dataset completo de treino \n')
 
 # Criando o modelo
-model = Autoencoder(Encoder, Decoder)
+model = ConvAutoencoder().to(device)
 criterion = nn.MSELoss()
-train_loss = []
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+print('🔹 Começando o treinamento...\n')
+train_loss = []
+
+
 
 # Processo de treinamento
 for epoch in range(NUM_EPOCHS):
@@ -56,13 +64,11 @@ for epoch in range(NUM_EPOCHS):
     running_loss = 0.0
 
     for data in train_loader:
-        images, _ = data
-        images = images.to(device)
-        images = images.view(images.size(0), -1)   # analisar
-
+        images = data.to(device)
         optimizer.zero_grad()
 
         outputs = model(images)
+        print("🔹 Predict realizado!")
 
         loss = criterion(outputs, images)
         loss.backward()
@@ -70,46 +76,18 @@ for epoch in range(NUM_EPOCHS):
         running_loss += loss.item()
 
     loss = running_loss / len(train_loader)
-    # train_loss.append(loss)
+    train_loss.append(loss)
 
-    print('Epoch {} of {}, Train Loss: {:.3f}'.format(
-            epoch+1, NUM_EPOCHS, loss))
-
+    print('Epoch {} of {}, Train Loss: {:.3f}'.format(epoch+1, NUM_EPOCHS, loss))
 
 
 
 
 
-        
-
-def train(net, trainloader, NUM_EPOCHS):
-    train_loss = []
-    for epoch in range(NUM_EPOCHS):
-        running_loss = 0.0
-        for data in trainloader:
-            img, _ = data
-            img = img.to(device)
-            img = img.view(img.size(0), -1)
-            optimizer.zero_grad()
-            outputs = net(img)
-            loss = criterion(outputs, img)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        
-        loss = running_loss / len(trainloader)
-        train_loss.append(loss)
-        print('Epoch {} of {}, Train Loss: {:.3f}'.format(
-            epoch+1, NUM_EPOCHS, loss))
-        if epoch % 5 == 0:
-            save_decoded_image(outputs.cpu().data, epoch)
-    return train_loss
-def test_image_reconstruction(net, testloader):
-     for batch in testloader:
-        img, _ = batch
-        img = img.to(device)
-        img = img.view(img.size(0), -1)
-        outputs = net(img)
-        outputs = outputs.view(outputs.size(0), 1, 28, 28).cpu().data
-        save_image(outputs, 'fashionmnist_reconstruction.png')
-        break
+def test_image_reconstruction(image, predict):
+    figure = plt.figure()
+    ax1 = figure.add_subplot(121)
+    ax2 = figure.add_subplot(122)
+    sim1 = ax1.imshow(image.cpu().detach().numpy().transpose((1,2,0)), cmap = 'gray')
+    sim2 = ax2.imshow(predict.cpu().detach().numpy().transpose((1,2,0)), cmap = 'gray')
+    plt.show()
