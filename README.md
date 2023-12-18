@@ -1,4 +1,4 @@
-# Análise dee algoritmos de aprendizado profundo não supervisionado para segmentação de fácies sísmicas 
+# Análise de algoritmos de aprendizado profundo não supervisionado para segmentação de fácies sísmicas 
 ### Trabalho de Conclusão de Curso
 ### Bryan S. Oliveira
 
